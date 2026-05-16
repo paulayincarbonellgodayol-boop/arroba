@@ -4,7 +4,7 @@
 //  DB — IndexedDB wrapper
 // ══════════════════════════════════════════
 const DB_NAME = 'roba_db_demo';
-const DB_VER  = 1;
+const DB_VER  = 2;
 let db;
 
 function openDB(){
@@ -12,6 +12,12 @@ function openDB(){
     const req = indexedDB.open(DB_NAME, DB_VER);
     req.onupgradeneeded = e => {
       const d = e.target.result;
+      // v2: wipe all stores so fresh seed (with May 2026 wears) loads cleanly
+      if(e.oldVersion > 0 && e.oldVersion < 2){
+        ['items','wears','meta','outfits','trash'].forEach(s=>{
+          if(d.objectStoreNames.contains(s)) d.deleteObjectStore(s);
+        });
+      }
       // items store
       if(!d.objectStoreNames.contains('items')){
         const s = d.createObjectStore('items',{keyPath:'id'});

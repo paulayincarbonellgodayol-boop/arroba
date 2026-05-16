@@ -333,6 +333,12 @@ function buildWears(){
 
     if(ids.length>0) wears.push({date,items:ids});
   }
+
+  // Mirror May 2023 → May 2026 (up to today) so the current month is populated
+  const today='2026-05-16';
+  wears.filter(w=>w.date.startsWith('2023-05')&&w.date.slice(8)<=today.slice(8))
+    .forEach(w=>wears.push({date:w.date.replace('2023-05','2026-05'),items:[...w.items]}));
+
   return wears;
 }
 
