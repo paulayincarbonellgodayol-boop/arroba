@@ -242,3 +242,209 @@ Date: 2026-05-16
 ### Remaining Risk / Follow-Up
 
 - This is still global-script architecture. Recommended next checkpoint: continue with another tiny pure extraction only if the function has no DOM, no IndexedDB, and no rendering side effects.
+
+## CP6 - Extract Dashboard Rendering Helpers
+
+Date: 2026-05-16
+
+### What Changed
+
+- Created `dashboard.js` with 6 functions moved from `app.js`:
+  - `getCached`
+  - `buildStatStripHTML`
+  - `statCardHTML`
+  - `highlightCardHTML`
+  - `buildMonthSummaryHTML`
+  - `renderCPUChart`
+- Added `<script src="dashboard.js"></script>` to `index.html`, loaded after `utils.js` and before `app.js`.
+- `app.js` reduced from 4307 to 4164 lines (143 lines removed).
+
+### Why
+
+- Move pure HTML builders and canvas renderer out of `app.js` without touching any behavior.
+- `renderDashboard` (async, calls DB and app-level functions) stays in `app.js` — too many dependencies to move safely yet.
+
+### Files Touched
+
+- `dashboard.js` (new)
+- `app.js`
+- `index.html`
+- `CHECKPOINT_LOG.md`
+
+### Intentionally Not Changed
+
+- No HTML structure or layout changed.
+- No CSS changed.
+- No IndexedDB schema or stored data changed.
+- No rendering output changed.
+- No UI, labels, or app capabilities changed.
+- No module system introduced.
+
+### Verification
+
+- Confirmed seam between removed block and WARDROBE section is clean.
+- Confirmed `dashboard.js` loads before `app.js` in `index.html`.
+- Confirmed `renderCPUChart` and HTML builders are no longer in `app.js`.
+
+### Remaining Risk / Follow-Up
+
+- `renderDashboard` still in `app.js`. Can be moved once persistence helpers are extracted.
+- Resolved in CP6-Brands.
+
+## CP6-Brands - Extract Brands Rendering
+
+Date: 2026-05-16
+
+### What Changed
+
+- Created `brands.js` with 2 functions moved from `app.js`:
+  - `renderBrands`
+  - `filterByBrand`
+- Added `<script src="brands.js"></script>` to `index.html`, between `dashboard.js` and `app.js`.
+- `app.js` reduced from 4164 to 4116 lines (48 lines removed).
+
+### Why
+
+- Both functions are self-contained within the Brands view with no shared state.
+- All runtime dependencies (`dbGetAll`, `showView`, `renderWardrobe`, `wrdActiveFilters`, `updateBadge`, `esc`) remain globals and are resolved at call time, not at load time.
+
+### Files Touched
+
+- `brands.js` (new)
+- `app.js`
+- `index.html`
+- `CHECKPOINT_LOG.md`
+
+### Intentionally Not Changed
+
+- No HTML structure or layout changed.
+- No CSS changed.
+- No IndexedDB schema or stored data changed.
+- No rendering output changed.
+- No UI, labels, or app capabilities changed.
+
+### Remaining Risk / Follow-Up
+
+- Recommended next: extract Favourites rendering (`renderFavourites`, `switchFavTab`, `renderFavItems`, `renderFavOutfits`).
+- Resolved in CP6-Favourites.
+
+## CP6-Favourites - Extract Favourites Rendering
+
+Date: 2026-05-16
+
+### What Changed
+
+- Created `favourites.js` with 4 functions moved from `app.js`:
+  - `renderFavourites`
+  - `switchFavTab`
+  - `renderFavItems`
+  - `renderFavOutfits`
+- Added `<script src="favourites.js"></script>` to `index.html`.
+- `app.js` reduced from 4116 to 4054 lines (62 lines removed).
+
+### Files Touched
+
+- `favourites.js` (new)
+- `app.js`
+- `index.html`
+- `CHECKPOINT_LOG.md`
+
+### Intentionally Not Changed
+
+- No HTML, CSS, IndexedDB, or UI behavior changed.
+
+### Remaining Risk / Follow-Up
+
+- Recommended next: extract Calendar rendering.
+- Resolved in CP6-Calendar.
+
+## CP6-Calendar - Extract Calendar Rendering
+
+Date: 2026-05-16
+
+### What Changed
+
+- Created `calendar.js` with state + all functions moved from `app.js`:
+  - `calYear`, `calMonth` (module state)
+  - `CAT_COLOR`, `CAT_DOT`, `MONTHS_CA` (local consts)
+  - `initCalendarSelectors`, `calJump`, `calMove`, `calGoToday`
+  - `renderCalendar`, `openDayModal`
+- Removed duplicate section header that existed in original.
+- Added `<script src="calendar.js"></script>` to `index.html`.
+- `app.js` reduced from 4054 to 3797 lines (257 lines removed).
+
+### Files Touched
+
+- `calendar.js` (new)
+- `app.js`
+- `index.html`
+- `CHECKPOINT_LOG.md`
+
+### Intentionally Not Changed
+
+- No HTML, CSS, IndexedDB, or UI behavior changed.
+
+### Remaining Risk / Follow-Up
+
+- Recommended next: extract Wardrobe rendering.
+- Resolved in CP6-Wardrobe.
+
+## CP6-Wardrobe - Extract Wardrobe Rendering
+
+Date: 2026-05-16
+
+### What Changed
+
+- Created `wardrobe.js` with all wardrobe constants, state, and functions moved from `app.js`:
+  - Constants: `CAT_LABELS`, `TYPES_BY_CAT`, `SEASON_LABELS`, `FORMAL_LABELS`, `STATUS_LABELS`
+  - State: `wrdPage`, `WRD_PER`, `wrdSelectMode`, `wrdSelected`, `wrdActiveFilters`, `wrdFilterBarBuilt`
+  - Functions: `buildFilterBar`, `buildMultiPanelWithFlowers`, `buildMultiPanel`, `updateBadge`, `updateClearBtn`, `clearAllFilters`, `toggleSelectMode`, `deleteSelected`, `renderWardrobe`, `buildWardrobeChips`, `buildTypeChips`, `toggleCatChip`, `filterChip`
+- `wardrobe.js` loads before `brands.js`, `favourites.js`, `calendar.js`, and `app.js` so shared constants (`CAT_LABELS`, `SEASON_LABELS`, `FORMAL_LABELS`, `TYPES_BY_CAT`) are available to all.
+- `app.js` reduced from 3797 to 3488 lines (309 lines removed).
+
+### Files Touched
+
+- `wardrobe.js` (new)
+- `app.js`
+- `index.html`
+- `CHECKPOINT_LOG.md`
+
+### Intentionally Not Changed
+
+- No HTML, CSS, IndexedDB, or UI behavior changed.
+
+### Remaining Risk / Follow-Up
+
+- Continued in CP6b.
+
+## CP6b - Extract Log + Outfits
+
+Date: 2026-05-16
+
+### What Changed
+
+**log.js** (new) — moved from `app.js`:
+- Constants: `LOG_CATS`
+- State: `logPieces`, `logItemCache`, `logDateInited`, `acHiIdx`
+- Functions: `initLogView`, `renderLogCats`, `renderCatRows`, `addLogPiece`, `removeLogPiece`, `onLogInput`, `showDrop`, `pickItem`, `pickGhost`, `onLogKey`, `hiDrop`, `closeDrop`, `closeAllDrops`, `updateLogCPW`, `loadDayHistory`, `deleteOutfit`, `clearLogForm`, `submitLog`
+- Note: `clearLogForm` and `submitLog` reference `logOcasioSelected` / `renderLogOcasioSelected` from Ocasions (app.js) — resolved at runtime.
+
+**outfits.js** (new) — moved from `app.js`:
+- State: `outfitBuilderPieces`, `historyOutfitsCache`, `historyIMap`, `historySort`, `smartSelectedItem`
+- Functions: `initOutfitsView`, `buildHistoryOutfits`, `sortHistoryOutfits`, `renderHistoryOutfits`, `renderSmartSelector`, `renderOutfitBuilder`, `addOutfitBuilderPiece`, `renderOutfitBuilderRows`, `showObDrop`, `checkDuplicateNucleus`, `clearOutfitBuilder`, `saveOutfit`, `renderOutfitsList`, `wearSavedOutfit`, `renderFooter`
+- References `LOG_CATS` (log.js) and `CAT_LABELS` (wardrobe.js) — both loaded first.
+
+`app.js` reduced from 3488 to 2658 lines (830 lines removed across both extractions).
+
+### Files Touched
+
+- `log.js` (new), `outfits.js` (new), `app.js`, `index.html`, `CHECKPOINT_LOG.md`
+
+### Intentionally Not Changed
+
+- No HTML, CSS, IndexedDB, or UI behavior changed.
+
+### Remaining Risk / Follow-Up
+
+- `app.js` still contains: persistence, seed data, boot, nav, item modal, item form, trash, export/import, debug, ocasions.
+- These are the most coupled sections — stop here and verify before deciding whether to continue.
