@@ -12,6 +12,12 @@ function openDB(){
     const req = indexedDB.open(DB_NAME, DB_VER);
     req.onupgradeneeded = e => {
       const d = e.target.result;
+      // v4: wipe all stores so fresh seed data loads cleanly
+      if(e.oldVersion > 0 && e.oldVersion < 4){
+        ['items','wears','meta','outfits','trash'].forEach(s=>{
+          if(d.objectStoreNames.contains(s)) d.deleteObjectStore(s);
+        });
+      }
       // items store
       if(!d.objectStoreNames.contains('items')){
         const s = d.createObjectStore('items',{keyPath:'id'});
