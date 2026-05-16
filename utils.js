@@ -91,6 +91,93 @@ function formatDate(str){
   return `${d} ${months[m-1]} ${y}`;
 }
 
+function selectHighlights(items) {
+  const result = { mostWorn: null, leastWorn: null, longestAgo: null };
+  items.forEach(item => {
+    if (item.wears > 0) {
+      if (!result.mostWorn || item.wears > result.mostWorn.wears) result.mostWorn = item;
+      if (!result.leastWorn || item.wears < result.leastWorn.wears) result.leastWorn = item;
+    }
+    if (item.lastWorn && (!result.longestAgo || item.lastWorn < result.longestAgo.lastWorn)) {
+      result.longestAgo = item;
+    }
+  });
+  return result;
+}
+
+function computeMonthStats(monthWears, itemMap) {
+  const days = new Map();
+  let latestDate = '';
+
+  monthWears.forEach(wear => {
+    if (wear.date > latestDate) latestDate = wear.date;
+    if (!days.has(wear.date)) days.set(wear.date, []);
+    days.get(wear.date).push(wear);
+  });
+
+  let total = 0;
+  let dayCount = 0;
+
+  days.forEach(wears => {
+    let daySum = 0;
+    let count = 0;
+    wears.forEach(wear => {
+      const item = itemMap[wear.itemId];
+      if (item && item.wears > 0) {
+        daySum += item.cpw;
+        count += 1;
+      }
+    });
+    if (count > 0) {
+      total += daySum / count;
+      dayCount += 1;
+    }
+  });
+
+  return {
+    average: dayCount > 0 ? total / dayCount : null,
+    latestDate
+  };
+}
+
+function getLast12MonthKeys(referenceDate) {
+  const monthKeys = [];
+  for (let offset = 11; offset >= 0; offset--) {
+    const d = new Date(referenceDate.getFullYear(), referenceDate.getMonth() - offset, 1);
+    monthKeys.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  }
+  return monthKeys;
+}
+
+function computeMonthlyAverage(monthKey, allWears, iMap) {
+  const byDay = new Map();
+  allWears.forEach(wear => {
+    if (!wear.date || !wear.date.startsWith(monthKey)) return;
+    if (!byDay.has(wear.date)) byDay.set(wear.date, []);
+    byDay.get(wear.date).push(wear);
+  });
+
+  let total = 0;
+  let count = 0;
+  byDay.forEach(wears => {
+    let daySum = 0;
+    let dayCount = 0;
+    wears.forEach(wear => {
+      const item = iMap[wear.itemId];
+      if (item && item.wears > 0) {
+        daySum += item.cpw;
+        dayCount += 1;
+      }
+    });
+    if (dayCount > 0) {
+      total += daySum / dayCount;
+      count += 1;
+    }
+  });
+
+  return count > 0 ? total / count : null;
+}
+
 function esc(s){
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }

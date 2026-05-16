@@ -1694,20 +1694,6 @@ function statCardHTML(icon, variant, label, value, note) {
     `</div>`;
 }
 
-function selectHighlights(items) {
-  const result = { mostWorn: null, leastWorn: null, longestAgo: null };
-  items.forEach(item => {
-    if (item.wears > 0) {
-      if (!result.mostWorn || item.wears > result.mostWorn.wears) result.mostWorn = item;
-      if (!result.leastWorn || item.wears < result.leastWorn.wears) result.leastWorn = item;
-    }
-    if (item.lastWorn && (!result.longestAgo || item.lastWorn < result.longestAgo.lastWorn)) {
-      result.longestAgo = item;
-    }
-  });
-  return result;
-}
-
 function highlightCardHTML(item, iconKey, label, subtitleFn) {
   const IC = {
     trophy: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8622A" stroke-width="1.8" stroke-linecap="round"><path d="M6 4h12v7a6 6 0 0 1-12 0V4z"/><path d="M6 7H3a3 3 0 0 0 3 3M18 7h3a3 3 0 0 1-3 3M12 17v3M8 20h8"/></svg>',
@@ -1719,41 +1705,6 @@ function highlightCardHTML(item, iconKey, label, subtitleFn) {
     `<div class="highlight-body"><div class="highlight-label">${label}</div>` +
     `<div class="highlight-value">${item.brand} ${item.name}</div>` +
     `<div class="highlight-sub">${subtitleFn(item)}</div></div></div>`;
-}
-
-function computeMonthStats(monthWears, itemMap) {
-  const days = new Map();
-  let latestDate = '';
-
-  monthWears.forEach(wear => {
-    if (wear.date > latestDate) latestDate = wear.date;
-    if (!days.has(wear.date)) days.set(wear.date, []);
-    days.get(wear.date).push(wear);
-  });
-
-  let total = 0;
-  let dayCount = 0;
-
-  days.forEach(wears => {
-    let daySum = 0;
-    let count = 0;
-    wears.forEach(wear => {
-      const item = itemMap[wear.itemId];
-      if (item && item.wears > 0) {
-        daySum += item.cpw;
-        count += 1;
-      }
-    });
-    if (count > 0) {
-      total += daySum / count;
-      dayCount += 1;
-    }
-  });
-
-  return {
-    average: dayCount > 0 ? total / dayCount : null,
-    latestDate
-  };
 }
 
 function buildMonthSummaryHTML({ monthDays, monthAvgCPU, monthWearsCount, monthLatestDate }) {
@@ -1858,44 +1809,6 @@ function renderCPUChart(allWears, iMap){
       ctx.fillText(mLabels[mIdx], x, H-6);
     }
   });
-}
-
-function getLast12MonthKeys(referenceDate) {
-  const monthKeys = [];
-  for (let offset = 11; offset >= 0; offset--) {
-    const d = new Date(referenceDate.getFullYear(), referenceDate.getMonth() - offset, 1);
-    monthKeys.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
-  }
-  return monthKeys;
-}
-
-function computeMonthlyAverage(monthKey, allWears, iMap) {
-  const byDay = new Map();
-  allWears.forEach(wear => {
-    if (!wear.date || !wear.date.startsWith(monthKey)) return;
-    if (!byDay.has(wear.date)) byDay.set(wear.date, []);
-    byDay.get(wear.date).push(wear);
-  });
-
-  let total = 0;
-  let count = 0;
-  byDay.forEach(wears => {
-    let daySum = 0;
-    let dayCount = 0;
-    wears.forEach(wear => {
-      const item = iMap[wear.itemId];
-      if (item && item.wears > 0) {
-        daySum += item.cpw;
-        dayCount += 1;
-      }
-    });
-    if (dayCount > 0) {
-      total += daySum / dayCount;
-      count += 1;
-    }
-  });
-
-  return count > 0 ? total / count : null;
 }
 
 // ══════════════════════════════════════════
@@ -3413,6 +3326,154 @@ async function importData(file){
   renderWardrobe();
   renderDashboard();
 }
+
+// ════════════════════════════════════════
+//  DEBUG — read-only data health checks
+// ════════════════════════════════════════
+async function debugCheckData(){
+  if(!db) await openDB();
+
+  const [items, wears, outfits, meta, trash] = await Promise.all([
+    dbGetAll('items'),
+    dbGetAll('wears'),
+    dbGetAll('outfits'),
+    dbGetAll('meta'),
+    dbGetAll('trash')
+  ]);
+
+  const warnings = [];
+  const addWarning = (type, id, message, extra) => {
+    warnings.push({type, id: id || '', message, extra: extra || null});
+  };
+  const isNum = value => typeof value === 'number' && Number.isFinite(value);
+  const approx = (a, b) => Math.abs((a || 0) - (b || 0)) < 0.01;
+  const itemMap = new Map();
+
+  items.forEach(item => {
+    if(!item || !item.id){
+      addWarning('item.missingId', '', 'Item without an id', item);
+      return;
+    }
+
+    itemMap.set(item.id, item);
+
+    ['brand','name','category','type'].forEach(field => {
+      if(typeof item[field] !== 'string') addWarning('item.fieldType', item.id, field + ' should be a string');
+    });
+    ['seasons','formality','units','images'].forEach(field => {
+      if(!Array.isArray(item[field])) addWarning('item.fieldType', item.id, field + ' should be an array');
+    });
+    ['price','quantity','totalCost','wears','cpw'].forEach(field => {
+      if(!isNum(item[field])) addWarning('item.fieldType', item.id, field + ' should be a number');
+    });
+
+    if(!item.color && (!Array.isArray(item.colors) || !item.colors.length)){
+      addWarning('item.color', item.id, 'Item has neither legacy color nor colors array');
+    }
+    if(item.colors !== undefined && !Array.isArray(item.colors)){
+      addWarning('item.colors', item.id, 'colors exists but is not an array');
+    }
+
+    if(Array.isArray(item.units)){
+      item.units.forEach((unit, index) => {
+        if(!unit || typeof unit !== 'object') addWarning('unit.shape', item.id, 'Unit ' + index + ' is not an object');
+        else if(typeof unit.retired !== 'boolean') addWarning('unit.retired', item.id, 'Unit ' + (unit.id || index) + ' retired should be boolean');
+      });
+
+      const expectedTotalCost = (item.price || 0) * item.units.length;
+      const activeUnits = item.units.filter(unit => unit && !unit.retired).length;
+      if(isNum(item.totalCost) && !approx(item.totalCost, expectedTotalCost)){
+        addWarning('item.totalCost', item.id, 'totalCost does not match price * total units', {stored:item.totalCost, expected:expectedTotalCost});
+      }
+      if(isNum(item.quantity) && item.quantity !== activeUnits){
+        addWarning('item.quantity', item.id, 'quantity does not match active units', {stored:item.quantity, expected:activeUnits});
+      }
+    }
+
+    if(isNum(item.wears) && isNum(item.totalCost) && isNum(item.cpw) && item.wears > 0){
+      const expectedCpw = item.totalCost > 0 ? item.totalCost / item.wears : 0;
+      if(!approx(item.cpw, expectedCpw)){
+        addWarning('item.cpw', item.id, 'cpw does not match totalCost / wears', {stored:item.cpw, expected:expectedCpw});
+      }
+    }
+  });
+
+  wears.forEach(wear => {
+    if(!wear || typeof wear !== 'object'){
+      addWarning('wear.shape', '', 'Wear record is not an object', wear);
+      return;
+    }
+    if(!wear.date || typeof wear.date !== 'string'){
+      addWarning('wear.date', wear.id, 'Wear record has no date string');
+    }
+    if(!wear.itemId){
+      addWarning('wear.itemId', wear.id, 'Wear record has no itemId');
+    } else if(!itemMap.has(wear.itemId)){
+      addWarning('wear.missingItem', wear.id, 'Wear references a missing item', {itemId:wear.itemId, date:wear.date});
+    }
+    if(wear.ocasions !== undefined && !Array.isArray(wear.ocasions)){
+      addWarning('wear.ocasions', wear.id, 'ocasions should be an array when present');
+    }
+  });
+
+  outfits.forEach(outfit => {
+    if(!outfit || !outfit.id){
+      addWarning('outfit.missingId', '', 'Outfit without an id', outfit);
+      return;
+    }
+    if(!Array.isArray(outfit.pieces)){
+      addWarning('outfit.pieces', outfit.id, 'Outfit pieces should be an array');
+      return;
+    }
+    outfit.pieces.forEach(piece => {
+      if(!piece.itemId) addWarning('outfit.pieceItem', outfit.id, 'Outfit piece has no itemId', piece);
+      else if(!itemMap.has(piece.itemId)) addWarning('outfit.missingItem', outfit.id, 'Outfit references a missing item', piece);
+    });
+  });
+
+  meta.forEach(record => {
+    if(!record || typeof record.key !== 'string'){
+      addWarning('meta.key', '', 'Meta record has no string key', record);
+    }
+    if(record && record.key === 'ocasions' && !Array.isArray(record.value)){
+      addWarning('meta.ocasions', 'ocasions', 'Ocasions meta value should be an array');
+    }
+  });
+
+  trash.forEach(item => {
+    if(!item || !item.id) addWarning('trash.missingId', '', 'Trash item has no id', item);
+    if(!isNum(item && item.deletedAt)) addWarning('trash.deletedAt', item && item.id, 'Trash item has no numeric deletedAt');
+  });
+
+  const byType = warnings.reduce((acc, warning) => {
+    acc[warning.type] = (acc[warning.type] || 0) + 1;
+    return acc;
+  }, {});
+  const result = {
+    ok: warnings.length === 0,
+    counts: {
+      items: items.length,
+      wears: wears.length,
+      outfits: outfits.length,
+      meta: meta.length,
+      trash: trash.length
+    },
+    warningCount: warnings.length,
+    byType,
+    warnings
+  };
+
+  console.groupCollapsed('ROBA data check: ' + (result.ok ? 'OK' : warnings.length + ' warning(s)'));
+  console.table(result.counts);
+  if(warnings.length) console.table(warnings);
+  console.groupEnd();
+
+  return result;
+}
+
+window.robaDebug = Object.assign(window.robaDebug || {}, {
+  checkData: debugCheckData
+});
 
 // ════════════════════════════════════════
 //  ITEM FORM — TYPE SELECTOR per categoria
