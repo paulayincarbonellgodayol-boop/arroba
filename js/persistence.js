@@ -3,8 +3,8 @@
 // ══════════════════════════════════════════
 //  DB — IndexedDB wrapper
 // ══════════════════════════════════════════
-const DB_NAME = 'roba_db';
-const DB_VER  = 4;
+const DB_NAME = 'roba_db_demo';
+const DB_VER  = 1;
 let db;
 
 function openDB(){
@@ -12,12 +12,6 @@ function openDB(){
     const req = indexedDB.open(DB_NAME, DB_VER);
     req.onupgradeneeded = e => {
       const d = e.target.result;
-      // v4: wipe all stores so fresh seed data loads cleanly
-      if(e.oldVersion > 0 && e.oldVersion < 4){
-        ['items','wears','meta','outfits','trash'].forEach(s=>{
-          if(d.objectStoreNames.contains(s)) d.deleteObjectStore(s);
-        });
-      }
       // items store
       if(!d.objectStoreNames.contains('items')){
         const s = d.createObjectStore('items',{keyPath:'id'});
