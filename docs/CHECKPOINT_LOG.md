@@ -448,3 +448,124 @@ Date: 2026-05-16
 
 - `app.js` still contains: persistence, seed data, boot, nav, item modal, item form, trash, export/import, debug, ocasions.
 - These are the most coupled sections — stop here and verify before deciding whether to continue.
+
+---
+
+## CP7 — Seed Data Extraction (2026-05-16)
+
+### What Changed
+
+Extracted the static seed data block (lines 114–1419) from `app.js` into `js/seed.js`.
+
+**seed.js** (new, 1306 lines) — moved from `app.js`:
+- Helpers: `mapSeason`, `autoFormality`
+- Data: `RAW_ITEMS` array (~280 wardrobe items from spreadsheet)
+- Builder: `buildItem` (transforms raw spreadsheet row into full item object)
+- Data: `RAW_WEARS` array (~900 historical wear log entries)
+
+`app.js` reduced from 2658 to 1352 lines (1306 lines removed).
+
+`seed.js` loads before `app.js` in index.html. `boot()` in app.js references `RAW_ITEMS`, `RAW_WEARS`, and `buildItem` — all globals from seed.js, resolved at runtime.
+
+### Files Touched
+
+- `seed.js` (new), `app.js`, `index.html`, `CHECKPOINT_LOG.md`
+
+### Intentionally Not Changed
+
+- No HTML, CSS, IndexedDB, or UI behavior changed.
+- Seed data content identical — only moved to a new file.
+
+### Remaining Risk / Follow-Up
+
+- `app.js` still contains: DB wrapper (~113 lines → future `persistence.js`), boot/nav, item modal, item form, trash, export/import, debug, ocasions.
+- Next candidates: `ocasions.js`, then `persistence.js`.
+
+---
+
+## CP8 — Ocasions Extraction (2026-05-16)
+
+### What Changed
+
+Extracted the Ocasions section (lines 1090–1352) from `app.js` into `js/ocasions.js`.
+
+**ocasions.js** (new, 263 lines) — moved from `app.js`:
+- Const: `OCASIONS_PRESET`
+- State: `ocasionsList`, `logOcasioSelected`
+- Functions: `loadOcasions`, `saveOcasions`, `initOcasionsView`, `ocasionColors`, `renderOcasionsGrid`, `openOcasioDetail`, `closeOcasioDetail`, `addOcasio`, `showOcasioDrop`, `showLogOcasioDrop`, `addLogOcasio`, `renderLogOcasioSelected`
+
+`app.js` reduced from 1352 to 1089 lines.
+
+`ocasions.js` loads before `app.js`. `app.js` calls `loadOcasions()` in `boot()` and `initOcasionsView()` in nav — both runtime calls to ocasions.js globals. `log.js` references `logOcasioSelected` and `renderLogOcasioSelected` at runtime only.
+
+### Files Touched
+
+- `ocasions.js` (new), `app.js`, `index.html`, `CHECKPOINT_LOG.md`
+
+### Intentionally Not Changed
+
+- No HTML, CSS, IndexedDB, or UI behavior changed.
+
+### Remaining Risk / Follow-Up
+
+- `app.js` still contains: DB wrapper (lines 1–113 → future `persistence.js`), boot/nav, item modal, item form, trash, export/import, debug.
+- Next candidate: `persistence.js` (DB wrapper, cleanest boundary).
+
+---
+
+## CP9 — Persistence Extraction (2026-05-16)
+
+### What Changed
+
+Extracted the DB wrapper (lines 1–112) from `app.js` into `js/persistence.js`.
+
+**persistence.js** (new, 112 lines) — moved from `app.js`:
+- Consts: `DB_NAME`, `DB_VER`
+- State: `db`
+- Functions: `openDB`, `dbGet`, `dbPut`, `migrateColorsToArrays`, `dbAdd`, `dbDelete`, `dbGetAll`, `dbGetIndex`
+
+`app.js` reduced from 1089 to 975 lines.
+
+`persistence.js` loads first (before utils.js and everything else) in index.html, so all DB functions are globals available to every other script.
+
+### Files Touched
+
+- `persistence.js` (new), `app.js`, `index.html`, `CHECKPOINT_LOG.md`
+
+### Intentionally Not Changed
+
+- No HTML, CSS, IndexedDB schema, or UI behavior changed.
+
+### Remaining in app.js (~975 lines)
+
+- Boot/nav, color selector, `renderDashboard`, item detail modal, item form, trash, export/import, debug, `catIconSVG` SVG builder.
+- These sections are more coupled to app state — good stopping point unless further splitting is requested.
+
+---
+
+## CP10 — Debug Guards (original CP7) (2026-05-16)
+
+### What Changed
+
+`debugCheckData()` already existed and covered all planned guards (item.id, colors array, wear→item refs). Added:
+
+1. **Auto-run on boot:** `debugCheckData()` called silently at end of `boot()` — console-only, never touches UI. Collapsed group shows OK or warning count.
+2. **Extended `window.robaDebug`** with four new console helpers:
+   - `robaDebug.item(id)` — fetch and log a single item by id
+   - `robaDebug.items(filterFn?)` — table of all items (optional filter function)
+   - `robaDebug.wears(itemId?)` — table of wear records (optional item filter)
+   - `robaDebug.stats()` — quick summary: counts, total cost, avg CPW
+3. **Fixed two lint hints:** dropped unused `d` from date destructure (line 395); dropped unused `containerId` param from `toggleMS` (HTML callers pass it but it was never used).
+
+### Files Touched
+
+- `app.js`, `CHECKPOINT_LOG.md`
+
+### Intentionally Not Changed
+
+- No HTML, CSS, IndexedDB, or UI behavior changed.
+- `debugCheckData()` logic unchanged — only wired to auto-run.
+
+### Next
+
+- Original CP9: full regression checklist.
